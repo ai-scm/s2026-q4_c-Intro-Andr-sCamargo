@@ -1,0 +1,329 @@
+OpenSearch con Docker compose 
+Objetivo
+
+Implementar OpenSearch y OpenSearch Dashboards utilizando Docker Compose, explorar los datasets de ejemplo de la plataforma y posteriormente cargar datasets propios para la construcción de dashboards y análisis de datos.
+
+1. Validación de prerrequisitos
+
+Antes de comenzar se verificó que Docker estuviera instalado correctamente.
+
+docker --version
+
+Este comando permite verificar la versión de Docker instalada y confirmar que el motor de contenedores se encuentra disponible.
+
+También se verificó la disponibilidad de Docker Compose.
+
+docker compose version
+ 
+
+Docker Compose será utilizado para desplegar los servicios de OpenSearch mediante un archivo YAML.
+
+Verificación de parámetros del sistema
+
+La documentación oficial recomienda validar la configuración de memoria utilizada por OpenSearch.
+
+cat /proc/sys/vm/max_map_count
+
+OpenSearch recomienda un valor mínimo de: 262144
+
+Durante la instalación se observó que el equipo ya contaba con un valor superior al recomendado, por lo que no fue necesario realizar modificaciones adicionales.
+
+Creación del directorio del proyecto
+
+Se creó un directorio para almacenar los archivos de configuración.
+
+mkdir ~/opensearch-cluster
+
+cd ~/opensearch-cluster
+
+Creación del archivo docker-compose.yml
+
+Se creó el archivo principal de configuración:
+
+
+nano docker-compose.yml
+ 
+
+El contenido que vamos a ubicar en ese archivo es el siguiente: 
+
+services:
+ 
+opensearch:
+image: opensearchproject/opensearch:3.9.0
+container_name: opensearch
+ 
+environment:
+- discovery.type=single-node
+- bootstrap.memory_lock=true
+- OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g
+- DISABLE_SECURITY_PLUGIN=true
+ 
+ulimits:
+memlock:
+soft: -1
+hard: -1
+ 
+volumes:
+- opensearch-data:/usr/share/opensearch/data
+ 
+ports:
+- "9200:9200"
+ 
+dashboards:
+image: opensearchproject/opensearch-dashboards:3.9.0
+container_name: opensearch-dashboards
+ 
+environment:
+- OPENSEARCH_HOSTS=["http://opensearch:9200"]
+- DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+ 
+ports:
+- "5601:5601"
+ 
+depends_on:
+- opensearch
+ 
+volumes:
+opensearch-data:
+
+Para guardar el contenido del archivo 
+
+CTRL + O
+ENTER
+CTRL + X
+
+Despliegue de los contenedores
+
+Una vez creado el archivo YAML se desplegó el entorno completo.
+
+docker compose up -d
+
+Este comando realiza automáticamente:
+
+Descarga de las imágenes necesarias.
+Creación de la red Docker.
+Creación del volumen persistente.
+Creación del contenedor OpenSearch.
+Creación del contenedor OpenSearch Dashboards.
+
+Verificación del despliegue
+
+Validación del estado de los contenedores:
+
+docker compose ps
+El resultado que esperamos es algo masomenos así: 
+
+opensearch Up
+opensearch-dashboards Up
+
+Verificación de OpenSearch
+
+Validación de la API REST.
+
+curl http://localhost:9200
+
+Respuesta esperada:
+
+{
+"cluster_name":"docker-cluster",
+"version":{
+"distribution":"opensearch",
+"number":"3.9.0"
+}
+}
+
+Esta respuesta confirma que OpenSearch se encuentra operativo.
+
+Acceso a OpenSearch Dashboards
+
+Ubicar la siguiente URL en un navegador (Según el puerto que se haya escogido)
+
+http://localhost:5601
+
+Una vez cargada la interfaz es posible acceder a los dashboards, exploradores de datos y herramientas de visualización.
+
+Exploración de datos en OpenSearch
+
+Una vez desplegado OpenSearch y OpenSearch Dashboards se utilizó uno de los datasets de ejemplo suministrados por la plataforma denominado Sample eCommerce Data, el cual contiene información relacionada con ventas, clientes, productos, ubicaciones geográficas y transacciones comerciales.
+
+Durante la exploración se identificó una diferencia importante frente a las bases de datos relacionales tradicionales. OpenSearch trabaja con índices y documentos JSON, en lugar de tablas y filas. Cada documento contiene la información completa de una transacción, permitiendo realizar búsquedas y agregaciones de forma eficiente.
+
+Para comprender la estructura de los datos se utilizó la funcionalidad Discover, donde fue posible inspeccionar los campos disponibles, identificar variables categóricas, numéricas y temporales, y formular preguntas analíticas antes de comenzar la construcción de visualizaciones.
+
+Campos identificados en el dataset
+
+Entre los campos disponibles se encontraron:
+
+order_date
+customer_gender
+geoip.continent_name
+products.category
+products.manufacturer
+products.price
+products.quantity
+taxful_total_price
+
+Estos campos permiten realizar análisis desde diferentes perspectivas como región geográfica, categoría de producto, fabricante, género del cliente, volumen de ventas e ingresos.
+
+Aplicación de filtros y análisis exploratorio
+
+Con el objetivo de comprender el funcionamiento de OpenSearch Dashboards se aplicaron diferentes filtros sobre el dataset.
+
+Uno de los primeros ejercicios consistió en analizar las ventas de accesorios femeninos en Asia, utilizando filtros por continente, categoría y fabricante. Este análisis permitió observar cómo las métricas y visualizaciones se recalculan dinámicamente a medida que se restringe el conjunto de datos analizado.
+
+Posteriormente se realizó una exploración orientada a identificar patrones de compra de accesorios masculinos a nivel mundial, limitando la cantidad adquirida entre dos y cuatro unidades. Esto permitió comprender el concepto de Faceted Search, en el cual cada filtro actúa como una dimensión adicional para segmentar la información y explorar subconjuntos específicos de datos.
+
+Ejemplos de preguntas analíticas planteadas
+
+Durante la exploración se formularon preguntas como:
+
+¿Qué continente genera mayores ingresos?
+¿Qué fabricante registra más ventas?
+¿Qué categorías son más populares?
+¿Existen diferencias entre las compras realizadas por hombres y mujeres?
+¿Qué continentes concentran mayores ventas de accesorios masculinos?
+¿Qué ocurre cuando se restringe el análisis a determinados rangos de cantidad adquirida?
+
+Estas preguntas sirvieron como base para comprender cómo funcionan los filtros, las agregaciones y las visualizaciones dentro de OpenSearch Dashboards.
+
+Comprensión de los filtros
+
+Durante las pruebas se exploraron diversos operadores de filtrado disponibles en OpenSearch Dashboards.
+
+Operador	Equivalencia conceptual
+is	Igual a (=)
+is not	Diferente de (<>)
+is one of	Contenido dentro de una lista (IN)
+is not one of	No contenido dentro de una lista (NOT IN)
+exists	Campo con valor
+does not exist	Campo sin valor
+
+La comprensión de estos operadores permitió construir filtros más complejos y comprender mejor el mecanismo de búsqueda facetada ofrecido por la plataforma.
+
+Creación de un dataset
+
+Después de explorar el dataset de ejemplo se creó un dataset propio, para entender el flujo completo: generar datos, definir su estructura, cargarlos y visualizarlos. Se eligió un caso de **ventas de una tienda de tecnología en Colombia**, porque incluye fechas (tendencias), categorías (comparaciones) y montos (métricas).
+
+### Script generador
+
+Se creó el script `generar_ventas.py`, que produce 1000 ventas aleatorias en el archivo `ventas.ndjson`.
+
+python3 generar_ventas.py
+
+Aspectos clave del script:
+
+- `random.seed(42)` hace que los datos sean reproducibles: al ejecutarlo de nuevo se obtiene el mismo resultado.
+- Un diccionario de catálogo relaciona cada categoría con sus productos y su rango de precios, para que los datos sean coherentes (un mouse no cuesta lo mismo que un portátil).
+- Las fechas se generan entre enero y octubre de 2026 en formato ISO (`2026-05-21T11:14:00`), que OpenSearch reconoce como fecha.
+- El campo `total` se calcula como `cantidad × precio_unitario`.
+
+Campos de cada documento:
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| id_venta | integer | Identificador de la venta |
+| fecha | date | Fecha y hora de la venta |
+| ciudad | keyword | Bogotá, Medellín, Cali, Barranquilla, Bucaramanga |
+| canal | keyword | Tienda física, Web, App móvil |
+| categoria | keyword | Celulares, Portátiles, Audio, Accesorios |
+| producto | keyword | Producto vendido |
+| cantidad | integer | Unidades (1 a 4) |
+| precio_unitario | long | Precio por unidad en COP |
+| total | long | Valor total de la venta |
+| metodo_pago | keyword | Tarjeta crédito, Tarjeta débito, Efectivo, PSE |
+| vendedor | keyword | Vendedor que realizó la venta |
+| calificacion | integer | Calificación del cliente (1 a 5) |
+
+### Formato NDJSON de la Bulk API
+
+La Bulk API **no acepta un array JSON normal** (`[{...}, {...}]`). Requiere formato NDJSON: una línea de acción antes de cada documento.
+
+{"index": {"_index": "ventas"}}
+{"id_venta": 1, "fecha": "2026-05-21T11:14:00", "ciudad": "Medellín", ...}
+
+
+Por eso el archivo tiene 2000 líneas para 1000 ventas, lo cual se verificó con:
+
+head -4 ventas.ndjson
+wc -l ventas.ndjson
+
+Creación del índice y mapping
+
+El índice `ventas` se creó con un mapping explícito antes de cargar los datos:
+
+curl -X PUT "http://localhost:9200/ventas" \
+  -H 'Content-Type: application/json' -d '
+{
+  "mappings": {
+    "properties": {
+      "id_venta":        { "type": "integer" },
+      "fecha":           { "type": "date" },
+      "ciudad":          { "type": "keyword" },
+      "canal":           { "type": "keyword" },
+      "categoria":       { "type": "keyword" },
+      "producto":        { "type": "keyword" },
+      "cantidad":        { "type": "integer" },
+      "precio_unitario": { "type": "long" },
+      "total":           { "type": "long" },
+      "metodo_pago":     { "type": "keyword" },
+      "vendedor":        { "type": "keyword" },
+      "calificacion":    { "type": "integer" }
+    }
+  }
+}'
+
+
+¿Por qué definir el mapping manualmente?** Si se carga sin mapping, OpenSearch adivina los tipos y guarda los textos como `text` (separados en palabras) más un subcampo 
+`campo.keyword`. Los campos `text` no sirven para agrupar en visualizaciones. Al declarar `keyword`, el valor se guarda completo ("Tarjeta crédito" como un solo valor) y queda listo para 
+agrupar y filtrar.
+
+Carga de los datos (Bulk API)
+
+curl -s -X POST "http://localhost:9200/_bulk" \
+  -H 'Content-Type: application/x-ndjson' \
+  --data-binary @ventas.ndjson | grep -o '"errors":[a-z]*'
+
+- Se usa `--data-binary` y no `-d`, porque `-d` elimina los saltos de línea y el formato NDJSON los necesita.
+- El resultado `"errors":false` confirma que ningún documento falló.
+
+Verificación del conteo:
+
+curl "http://localhost:9200/ventas/_count?pretty"
+
+
+Como la seguridad está desactivada (`DISABLE_SECURITY_PLUGIN=true`), los comandos usan `http://` y no requieren usuario ni contraseña.
+
+Creación del index pattern
+
+En OpenSearch Dashboards: **Dashboards Management → Index patterns → Create index pattern**.
+
+- Nombre: `ventas`
+- Campo de tiempo: `fecha`
+
+El index pattern indica a Dashboards qué índice leer y qué campo usar como eje temporal.
+
+Se validó en **Discover** con el rango de tiempo en **Last 1 year**. Es importante ajustar el rango, porque por defecto Dashboards muestra solo los últimos 15 minutos y los datos (enero a octubre de 2026) aparecerían vacíos.
+
+Visualizaciones
+
+Todas se crean desde **Visualize → Create visualization**, eligiendo el tipo y la fuente `ventas`. Cada una usa dos conceptos:
+
+- **Metrics**: qué se calcula (suma, conteo, promedio).
+- **Buckets**: cómo se agrupa (por categoría, ciudad, fecha).
+
+| Visualización | Tipo | Metric | Bucket | Pregunta que responde |
+|---|---|---|---|---|
+| Ingresos por categoría | Vertical Bar | Sum de `total` | Terms: `categoria` | ¿Qué categoría genera más ingresos? |
+| Ingresos por ciudad | Vertical Bar | Sum de `total` | Terms: `ciudad` | ¿Qué ciudad vende más? |
+| Ventas por canal | Pie | Count | Terms: `canal` | ¿Qué canal se usa más? |
+| Método de pago | Pie | Count | Terms: `metodo_pago` | ¿Cómo pagan los clientes? |
+| Ventas por vendedor | Horizontal Bar | Sum de `total` | Terms: `vendedor` | ¿Quién vende más? |
+
+
+Dashboard y filtros
+
+1. **Dashboards → Create new dashboard**.
+2. **Add** para agregar las visualizaciones guardadas.
+3. Se organizaron los filtros y KPIs arriba y las gráficas abajo.
+4. **Save** con el nombre 
+
