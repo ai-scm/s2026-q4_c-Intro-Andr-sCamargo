@@ -1,0 +1,45 @@
+# Equivalentes en Dev Tools (localhost:5601 > Dev Tools)
+# Aquí no se escribe curl, ni la URL base, ni los encabezados
+
+# 0. Estado del clúster
+GET _cluster/health
+
+# 1. Contar documentos
+GET ventas/_count
+
+# 2. Un solo documento
+GET ventas/_search
+{
+  "size": 1
+}
+
+# 3. Estructura del índice
+GET ventas/_mapping
+GET ventas/_settings
+
+# 4. Filtro exacto
+GET ventas/_search
+{
+  "size": 2,
+  "query": { "term": { "ciudad": "Bogotá" } }
+}
+
+# 5. Búsqueda facetada
+GET ventas/_search
+{
+  "size": 0,
+  "aggs": {
+    "por_ciudad":    { "terms": { "field": "ciudad" } },
+    "por_categoria": { "terms": { "field": "categoria" } }
+  }
+}
+
+# 6. Reto: ventas por canal, solo categoría Portátiles
+GET ventas/_search
+{
+  "size": 0,
+  "query": { "term": { "categoria": "Portátiles" } },
+  "aggs": {
+    "por_canal": { "terms": { "field": "canal" } }
+  }
+}
